@@ -1,37 +1,47 @@
 version: 2
 
+references:
+  cache_key: &cache_key v1-dependencies-{{ checksum "package-lock.json" }}-{{ checksum "./functions/package-lock.json" }}
+
 jobs:
-  ci:
+  deploy_main:
     docker:
-      - image: cimg/node:lts
+      - image: circleci/node:16.9.1
     steps:
       - checkout
 
       - restore_cache:
           keys:
-            - node-v1-{{ checksum "package-lock.json" }}
+            - *cache_key
 
       - run:
-          name: Install dependencies
-          command: npm ci
+          name: Install app dependencies
+          command: npm install
+
+      - run:
+          name: Install function dependencies
+          command: cd functions && npm install
 
       - save_cache:
-          key: node-v1-{{ checksum "package-lock.json" }}
+          key: *cache_key
           paths:
-            - ~/.npm
-
+            - node_modules
+            - functions/node_modules
 
       - run:
-          name: Run tests
-          command: npm run test
+          name: Build project
+          command: npm run build
+      
+      - run:
+          name: Deploy firebase Hosting
+          command: ./node_modules/.bin/firebase deploy --token=$FIREBASE_TOKEN
 
 workflows:
   version: 2
-  ci:
+  build_and_deploy:
     jobs:
-      - ci:
+      - deploy_main:
           filters:
             branches:
               only:
-                - main
                 - master
